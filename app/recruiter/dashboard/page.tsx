@@ -19,7 +19,7 @@ interface JobListProps {
         status: 'active' | 'closed';
     }>;
     onDelete: (id: number) => void;
-    onEdit: (job: any) => void;
+    onEdit: (job: JobListProps['jobs'][number]) => void;
 }
 
 const CreateJobForm = ({ onJobCreated }: { onJobCreated: (job: JobListProps['jobs'][number]) => void }) => {

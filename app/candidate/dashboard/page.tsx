@@ -6,6 +6,20 @@ import { useRouter } from "next/navigation";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+export interface Job {
+   id: string;
+  title: string;
+  department: string;
+  location: string;
+  salary: string;
+  description: string;
+  requirements: string;
+  postedDate: string;
+  requiredSkills: string[];
+  status: string;
+  numberOfApplicants: number;
+}
+
 export default function CandidateDashboard() {
   const { data: jobs, error, isLoading } = useSWR("/api/jobs", fetcher);
   const router = useRouter();
@@ -22,7 +36,7 @@ export default function CandidateDashboard() {
         {jobs?.length === 0 ? (
           <p className="text-muted-foreground col-span-full">No jobs available right now.</p>
         ) : (
-          jobs.map((job: any) => (
+          jobs.map((job: Job) => (
             <div
               key={job.id}
               className="bg-card border border-border rounded-xl p-6 shadow-sm hover:shadow-md transition-all hover:scale-[1.01] flex flex-col justify-between"

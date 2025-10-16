@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { Loader2, UploadCloud, CheckCircle2, X, FileText, Download, Trash2, Eye } from 'lucide-react';
-import { dataTagErrorSymbol } from '@tanstack/react-query';
 
 // Add onUploadSuccess to the component's props
 type ResumeUploaderProps = {
@@ -19,18 +18,15 @@ export function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
    const [existingResumeUrl, setExistingResumeUrl] = useState<string | null>(null);
-  const [loadingExisting, setLoadingExisting] = useState(true);
   const [existingResumeId, setExistingResumeId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchExistingResume = async () => {
       if (!isSignedIn || !user?.id) {
-        setLoadingExisting(false);
         return;
       }
 
       await fetchResume();
-      setLoadingExisting(false);
     };
 
     fetchExistingResume();
@@ -104,8 +100,9 @@ export function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps) {
         onUploadSuccess();
       }
 
-    } catch (error: any) {
-      toast.error("Resume upload failed", { id: "resume-upload", description: error.message });
+    } catch (error) {
+      console.error("Resume upload error:", error);
+      toast.error("Resume upload failed", { id: "resume-upload" });
       setUploadSuccess(false);
     } finally {
       setUploading(false);
@@ -127,6 +124,7 @@ export function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps) {
         throw new Error('Failed to delete resume');
       }
     } catch (error) {
+      console.error("Error deleting resume:", error);
       toast.error("Failed to delete resume");
     }
   };
