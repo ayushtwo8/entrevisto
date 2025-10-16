@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,7 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// 1. Roles: Defines distinct application roles.
 enum Role {
   CANDIDATE
   RECRUITER
@@ -41,7 +34,6 @@ enum InterviewStatus {
   ANALYSIS_COMPLETED
 }
 
-// 2. Company: The multi-tenant unit. Jobs and Recruiters belong here.
 model Company {
   id        String   @id @default(cuid())
   name    String   @unique
@@ -57,13 +49,10 @@ model Company {
 
 // 3. User: Primary application user, linked to Clerk ID.
 model User {
-  // Use Clerk's ID as the primary key for simple referencing
-  clerkId   String   @id @map("clerkId") // Use @map to rename the column in the DB
+  clerkId   String   @id @map("clerkId") 
   email     String   @unique
-  role      Role     @default(CANDIDATE) // Assuming a single primary role per user
+  role      Role     @default(CANDIDATE) 
 
-  // Links Recruiter users to a Company.
-  // This field should only be populated if role is RECRUITER.
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id])
 
@@ -74,7 +63,7 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("users") // Explicitly names the table
+  @@map("users") 
 }
 
 model Job {
@@ -86,9 +75,9 @@ model Job {
   description    String
   requirements   String
   postedDate   DateTime @default(now())
-  status    String  @default("active") // OPEN, CLOSED, PAUSED
+  status    String  @default("active") 
   numberOfApplicants Int @default(0)
-  requiredSkills String[] // Changed to String[] for better querying and storage
+  requiredSkills String[] 
   
   // Link to the Company that owns this job
   companyId String
@@ -100,39 +89,31 @@ model Job {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([companyId, title]) // Ensures a company doesn't have two jobs with the exact same title
+  @@unique([companyId, title]) 
   @@map("jobs")
 }
 
-// 6. Resume: Stores structured resume data
 model Resume {
   id        String   @id @default(cuid())
   fileUrl   String?
-  rawText   String   @db.Text // Use @db.Text for potentially large resume texts
+  rawText   String   @db.Text 
   
-  // Structured data (parsed JSON array of skills/experience).
-  // Strong recommendation to define a consistent type/interface for this in your application.
   parsedData Json? 
   
-  // Link to the Candidate who owns this resume
   userId    String
   user      User     @relation(fields: [userId], references: [clerkId])
 
-  // Relationship to link which interview session used this resume
   applications Application[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
-  // Removed @@unique([userId]) to allow users to have multiple resumes
-  // You will need application logic to select which resume is used for an InterviewSession
   @@map("resumes")
 }
 
 model Application {
   id          String          @id @default(cuid())
   
-  // Links
   candidateId String
   candidate   User            @relation(fields: [candidateId], references: [clerkId])
   
@@ -144,13 +125,12 @@ model Application {
   
   status      ApplicationStatus @default(APPLIED)
   
-  // Relationships (one InterviewSession per Application)
   interviewSession InterviewSession?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([candidateId, jobId]) // A candidate applies once per job
+  @@unique([candidateId, jobId]) 
   @@map("applications")
 }
 
@@ -158,7 +138,6 @@ model Application {
 model InterviewSession {
   id             String    @id @default(cuid())
 
-  // Link to the Parent Application (mandatory, unique)
   applicationId    String?           @unique
   application      Application?      @relation(fields: [applicationId], references: [id])
   
