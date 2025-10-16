@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { MapPin, DollarSign, Briefcase, ArrowLeft, Sparkles } from "lucide-react";
+import {
+  MapPin,
+  DollarSign,
+  Briefcase,
+  ArrowLeft,
+  Sparkles,
+} from "lucide-react";
 
 interface Job {
   title: string;
@@ -18,7 +24,7 @@ interface Job {
 }
 
 export default function JobDetailsPage() {
-  const {jobId } = useParams();
+  const { jobId } = useParams();
   const router = useRouter();
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,13 +93,19 @@ export default function JobDetailsPage() {
 
         {/* Description */}
         <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-2 text-foreground">Job Description</h2>
-          <p className="text-muted-foreground leading-relaxed">{job.description}</p>
+          <h2 className="text-xl font-semibold mb-2 text-foreground">
+            Job Description
+          </h2>
+          <p className="text-muted-foreground leading-relaxed">
+            {job.description}
+          </p>
         </section>
 
         {/* Requirements */}
         <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-2 text-foreground">Requirements</h2>
+          <h2 className="text-xl font-semibold mb-2 text-foreground">
+            Requirements
+          </h2>
           <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
             {job.requirements}
           </p>
@@ -101,23 +113,21 @@ export default function JobDetailsPage() {
 
         {/* Skills */}
         <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-3 text-foreground">Required Skills</h2>
+          <h2 className="text-xl font-semibold mb-3 text-foreground">
+            Required Skills
+          </h2>
           <div className="flex flex-wrap gap-2">
-            {(Array.isArray(job.requiredSkills)
-      ? job.requiredSkills
-      : job.requiredSkills.split(',').map((s) => s.trim())
-    ).map((skill, i) => (
-      <span
-        key={i}
-        className="px-3 py-1 text-sm bg-accent/20 text-accent-foreground rounded-full"
-      >
-        {skill}
-      </span>
-    ))}
+            {job.requiredSkills.map((skill, i) => (
+              <span
+                key={i}
+                className="px-3 py-1 text-sm bg-accent/20 text-accent-foreground rounded-full"
+              >
+                {skill}
+              </span>
+            ))}
           </div>
         </section>
 
-        {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4">
           <button
             onClick={() => alert("Job applied successfully!")}
