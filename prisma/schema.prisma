@@ -1,0 +1,185 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. Roles: Defines distinct application roles.
+enum Role {
+  CANDIDATE
+  RECRUITER
+}
+
+enum InterviewType {
+  JOB_APPLICATION
+  PRACTICE
+}
+
+enum ApplicationStatus {
+  APPLIED
+  REVIEWED
+  INTERVIEW_INVITED
+  REJECTED
+  HIRED
+}
+
+enum InterviewStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  ANALYSIS_PENDING
+  ANALYSIS_FAILED
+  ANALYSIS_COMPLETED
+}
+
+// 2. Company: The multi-tenant unit. Jobs and Recruiters belong here.
+model Company {
+  id        String   @id @default(cuid())
+  name    String   @unique
+  logoUrl   String?
+  createdAt DateTime @default(now())
+
+  // Relationships
+  recruiters User[]
+  jobs       Job[]
+
+  @@map("companies")
+}
+
+// 3. User: Primary application user, linked to Clerk ID.
+model User {
+  // Use Clerk's ID as the primary key for simple referencing
+  clerkId   String   @id @map("clerkId") // Use @map to rename the column in the DB
+  email     String   @unique
+  role      Role     @default(CANDIDATE) // Assuming a single primary role per user
+
+  // Links Recruiter users to a Company.
+  // This field should only be populated if role is RECRUITER.
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  // Relationships
+  resumes   Resume[]
+  applications Application[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users") // Explicitly names the table
+}
+
+model Job {
+  id             String   @id @default(cuid())
+  title          String
+  department     String
+  location       String
+  salary        String
+  description    String
+  requirements   String
+  postedDate   DateTime @default(now())
+  status    String  @default("active") // OPEN, CLOSED, PAUSED
+  numberOfApplicants Int @default(0)
+  requiredSkills String[] // Changed to String[] for better querying and storage
+  
+  // Link to the Company that owns this job
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Relationships
+  applications Application[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, title]) // Ensures a company doesn't have two jobs with the exact same title
+  @@map("jobs")
+}
+
+// 6. Resume: Stores structured resume data
+model Resume {
+  id        String   @id @default(cuid())
+  fileUrl   String?
+  rawText   String   @db.Text // Use @db.Text for potentially large resume texts
+  
+  // Structured data (parsed JSON array of skills/experience).
+  // Strong recommendation to define a consistent type/interface for this in your application.
+  parsedData Json? 
+  
+  // Link to the Candidate who owns this resume
+  userId    String
+  user      User     @relation(fields: [userId], references: [clerkId])
+
+  // Relationship to link which interview session used this resume
+  applications Application[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Removed @@unique([userId]) to allow users to have multiple resumes
+  // You will need application logic to select which resume is used for an InterviewSession
+  @@map("resumes")
+}
+
+model Application {
+  id          String          @id @default(cuid())
+  
+  // Links
+  candidateId String
+  candidate   User            @relation(fields: [candidateId], references: [clerkId])
+  
+  jobId       String
+  job         Job             @relation(fields: [jobId], references: [id])
+  
+  resumeId    String
+  resume      Resume          @relation(fields: [resumeId], references: [id])
+  
+  status      ApplicationStatus @default(APPLIED)
+  
+  // Relationships (one InterviewSession per Application)
+  interviewSession InterviewSession?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([candidateId, jobId]) // A candidate applies once per job
+  @@map("applications")
+}
+
+
+model InterviewSession {
+  id             String    @id @default(cuid())
+
+  // Link to the Parent Application (mandatory, unique)
+  applicationId    String?           @unique
+  application      Application?      @relation(fields: [applicationId], references: [id])
+  
+  // Vapi/AI Data
+  vapiCallId       String?          @unique // Vapi's ID for tracking webhooks
+  aiScore          Float?
+  summary          String?          @db.Text
+  transcript       String?          @db.Text
+  
+  // Status and Type
+  status           InterviewStatus  @default(PENDING)
+  type             InterviewType    @default(JOB_APPLICATION) // Practice mode will not be linked to an Application, see note below
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("interview_sessions")
+}
+
+// Enum for InterviewSession type clarity
+// enum InterviewType {
+//   JOB_APPLICATION // An interview linked to an actual job opening
+//   PRACTICE        // A practice interview not tied to a specific job application
+// }

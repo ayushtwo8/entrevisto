@@ -1,0 +1,70 @@
+import { prisma } from "@/lib/prisma";
+import { currentUser } from "@clerk/nextjs/server";
+import { NextRequest, NextResponse } from "next/server";
+
+// Define the response structure for type safety on the client
+// export type JobDetailsResponse = {
+//     title: string;
+//     description: string;
+//     requiredSkills: string; // Stored as String, likely JSON/CSV
+//     requirements: string;
+//     company: {
+//         name: string;
+//     };
+//     id: string;
+// }
+
+// GET handler to fetch details for a specific job ID
+export async function GET(
+    request: NextRequest, 
+    { params }: { params: { jobId: string } }
+) {
+    const user = await currentUser();
+    const userId = user?.id;
+
+    const jobId = params.jobId;
+
+    // 1. Authorization Check (Ensure the user is logged in)
+    if (!userId) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // 2. Data Validation
+    if (!jobId) {
+        return NextResponse.json({ error: "Missing Job ID" }, { status: 400 });
+    }
+
+    try {
+        // 3. Fetch Job Data with Company Name
+        const job = await prisma.job.findUnique({
+            where: { id: jobId },   
+            select: {
+                title: true,
+                description: true,
+                requiredSkills: true,
+                requirements: true,
+                company: { select: { name: true } },
+                id: true,
+                location: true,
+                department: true,
+                salary: true,
+                postedDate: true,
+                status: true,
+            }
+        });
+
+        if (!job) {
+            return NextResponse.json({ error: "Job not found" }, { status: 404 });
+        }
+
+        // 4. Return the structured job data
+        return NextResponse.json(job, { status: 200 });
+
+    } catch (error) {
+        console.error(`Error fetching job ${jobId}:`, error);
+        return NextResponse.json(
+            { error: "Failed to retrieve job details" },
+            { status: 500 }
+        );
+    }
+}
