@@ -97,7 +97,7 @@ export default function InterviewPrepPage() {
         // based on the logged-in user (e.g., via a Clerk session).
         body: JSON.stringify({
           applicationId: jobId, // Pass the jobId or the application ID
-          candidateNumber: "browser", // Use 'browser' for Vapi Web Call
+          // candidateNumber: "browser", // Use 'browser' for Vapi Web Call
         }),
       });
 

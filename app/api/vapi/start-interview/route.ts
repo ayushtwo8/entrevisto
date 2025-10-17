@@ -30,9 +30,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { jobId, candidateNumber } = await req.json();
+    const { jobId } = await req.json();
 
-    if (!jobId || !candidateNumber) {
+    if (!jobId) {
       return NextResponse.json(
         { message: "Missing required fields" },
         { status: 400 }
@@ -70,9 +70,9 @@ export async function POST(req: NextRequest) {
     // 2. Prepare the Vapi Call payload
     const callPayload = {
       assistantId: VAPI_ASSISTANT_ID,
-      customer: {
-        number: candidateNumber, // Use actual phone number or 'browser' for web call
-      },
+    //   customer: {
+    //     number: candidateNumber, // Use actual phone number or 'browser' for web call
+    //   },
       // Pass the new session ID as metadata for the assistant to use in the tool call
       metadata: {
         interviewSessionId: newSession.id,
