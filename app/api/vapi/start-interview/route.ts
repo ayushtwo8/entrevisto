@@ -8,15 +8,18 @@ const VAPI_ASSISTANT_ID = process.env.VAPI_ASSISTANT_ID; // Replace with your As
 // const VAPI_PHONE_NUMBER_ID = 'YOUR_VAPI_PHONE_NUMBER_ID'; // For phone calls, or omit for web call
 
 if (!VAPI_API_KEY || !VAPI_ASSISTANT_ID) {
-    throw new Error("VAPI_API_KEY or VAPI_ASSISTANT_ID is missing in environment.");
+  throw new Error(
+    "VAPI_API_KEY or VAPI_ASSISTANT_ID is missing in environment."
+  );
 }
 
 const vapi = new VapiClient({ token: VAPI_API_KEY! });
 
-type VapiCallResponse = Awaited<ReturnType<typeof vapi.calls.create>>;
-type SingleCallResponse = VapiCallResponse extends Array<string>
-  ? VapiCallResponse[number]
-  : VapiCallResponse;
+interface VapiSingleCall {
+  id: string;
+  // Add other fields if strictly necessary, but 'id' is the minimum needed.
+  [key: string]: any; // Allows for other properties without explicit definition
+}
 
 export async function POST(req: NextRequest) {
   const user = await currentUser();
@@ -79,8 +82,8 @@ export async function POST(req: NextRequest) {
 
     // 3. Initiate the Vapi Call (Web Call for simplicity here)
     const vapiCall = (await vapi.calls.create(
-      callPayload 
-    )) as SingleCallResponse;
+      callPayload as any
+    )) as VapiSingleCall;
 
     // 4. Update the InterviewSession with the Vapi Call ID
     await prisma.interviewSession.update({
