@@ -18,7 +18,7 @@ const vapi = new VapiClient({ token: VAPI_API_KEY! });
 interface VapiSingleCall {
   id: string;
   // Add other fields if strictly necessary, but 'id' is the minimum needed.
-  [key: string]: any; // Allows for other properties without explicit definition
+  [key: string]: unknown; // Allows for other properties without explicit definition
 }
 
 export async function POST(req: NextRequest) {
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Initiate the Vapi Call (Web Call for simplicity here)
     const vapiCall = (await vapi.calls.create(
-      callPayload as any
+      callPayload 
     )) as VapiSingleCall;
 
     // 4. Update the InterviewSession with the Vapi Call ID
