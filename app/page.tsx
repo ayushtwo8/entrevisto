@@ -131,7 +131,7 @@ export default function Home() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         {/* Or a more sophisticated loading spinner */}
-        <p>Loading application...</p>
+        <p>Loading...</p>
       </div>
     );
   }
