@@ -18,6 +18,7 @@ type JobDetails = {
 
 export default function InterviewPrepPage() {
   const { jobId } = useParams();
+  console.log(jobId)
   const router = useRouter();
 
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
