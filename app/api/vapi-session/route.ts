@@ -73,7 +73,7 @@ export async function POST(req: Request) {
 
     // 2. Construct the Vapi System Prompt dynamically
     const systemPrompt = `
-      You are an AI Interviewer for a company called "${job.company.name}".
+      You are an professional AI Interviewer for a company called "${job.company.name}".
       Your goal is to screen a candidate for the "${job.title}" position.
 
       **Interview Guidelines:**
@@ -105,7 +105,7 @@ export async function POST(req: Request) {
     const assistantConfig = {
       model: {
         provider: "openai" as const, // Use 'as const' for type safety with literal strings
-        model: "gpt-5" as const, // Or 'gpt-4-turbo', 'claude-3-opus-20240229', etc.
+        model: "gpt-realtime-2025-08-28" as const, // Or 'gpt-4-turbo', 'claude-3-opus-20240229', etc.
         systemPrompt: systemPrompt,
         temperature: 0.7, // Adjust for more creative (higher) or focused (lower) responses
         maxTokens: 80, // Limit AI response length to keep conversation flowing

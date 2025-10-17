@@ -19,11 +19,12 @@ type JobDetails = {
 export default function InterviewPrepPage() {
   const { jobId } = useParams();
   const router = useRouter();
-  
+
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isResumeReady, setIsResumeReady] = useState(false);
+  const [isStartingCall, setIsStartingCall] = useState(false);
 
   // --- 1. Data Fetching ---
   useEffect(() => {
@@ -36,16 +37,16 @@ export default function InterviewPrepPage() {
       try {
         const response = await fetch(`/api/candidate/jobs/${jobId}`);
         if (!response.ok) throw new Error("Failed to fetch job details.");
-        
+
         const data = await response.json();
-        
+
         // Safely parse skills from a JSON string to an array
-        const skills = typeof data.requiredSkills === 'string'
-          ? JSON.parse(data.requiredSkills)
-          : data.requiredSkills || [];
+        const skills =
+          typeof data.requiredSkills === "string"
+            ? JSON.parse(data.requiredSkills)
+            : data.requiredSkills || [];
 
         setJobDetails({ ...data, requiredSkills: skills });
-
       } catch (err) {
         console.error("Fetch error:", err);
         setError("Could not load job details. Please try again.");
@@ -60,7 +61,7 @@ export default function InterviewPrepPage() {
   useEffect(() => {
     async function checkResumeExists() {
       try {
-        const response = await fetch('/api/resume/fetch');
+        const response = await fetch("/api/resume/fetch");
         if (response.ok) {
           const data = await response.json();
           // Check if resume exists (adjust based on your API response structure)
@@ -76,8 +77,47 @@ export default function InterviewPrepPage() {
     checkResumeExists();
   }, []);
 
-  const handleStartInterview = () => {
-    router.push(`/candidate/interview/call/${jobId}`);
+  const handleStartInterview = async () => {
+    if (!jobId) return;
+
+    setIsStartingCall(true);
+
+    try {
+      // 1. Call your backend API to start the Vapi call and create the InterviewSession.
+      // This is the API route we designed in the previous step.
+      const response = await fetch("/api/vapi/start-interview", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        // Note: You need the candidate's phone number or 'browser' string here.
+        // Assuming you'll get the current user's number or default to 'browser' for a web interview.
+        // For simplicity, let's assume 'browser' and you'll fetch candidate info on the backend
+        // based on the logged-in user (e.g., via a Clerk session).
+        body: JSON.stringify({
+          applicationId: jobId, // Pass the jobId or the application ID
+          candidateNumber: "browser", // Use 'browser' for Vapi Web Call
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to start interview call.");
+      }
+
+      // 2. The backend should return the new InterviewSession ID
+      const newSessionId = data.sessionId;
+
+      // 3. Redirect the user to the Interview page using the new session ID
+      // The Vapi call will be running in the background, and the frontend page
+      // (app/interview/[sessionId]/page.tsx from before) will connect to it.
+      router.push(`/candidate/interview/call/${newSessionId}`);
+    } catch (err: any) {
+      console.error("Start Interview Error:", err);
+      alert(`Error starting interview: ${err.message || "Please try again."}`);
+      setIsStartingCall(false); // Reset loading state on error
+    }
   };
 
   // --- 3. Loading and Error States ---
@@ -95,7 +135,9 @@ export default function InterviewPrepPage() {
       <div className="flex flex-col items-center justify-center min-h-screen p-8">
         <div className="bg-card p-10 rounded-xl shadow-lg text-center">
           <h1 className="text-2xl font-bold text-destructive mb-4">Error</h1>
-          <p className="text-muted-foreground">{error || "The job could not be found."}</p>
+          <p className="text-muted-foreground">
+            {error || "The job could not be found."}
+          </p>
         </div>
       </div>
     );
@@ -105,8 +147,12 @@ export default function InterviewPrepPage() {
   return (
     <div className="min-h-screen bg-background p-8 font-sans">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-extrabold text-foreground mb-2">{jobDetails.title}</h1>
-        <p className="text-xl text-primary font-semibold mb-8">{jobDetails.company.name}</p>
+        <h1 className="text-4xl font-extrabold text-foreground mb-2">
+          {jobDetails.title}
+        </h1>
+        <p className="text-xl text-primary font-semibold mb-8">
+          {jobDetails.company.name}
+        </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Job Details Section */}
@@ -117,10 +163,15 @@ export default function InterviewPrepPage() {
             <p className="text-muted-foreground leading-relaxed mb-6 whitespace-pre-line">
               {jobDetails.description}
             </p>
-            <h3 className="text-xl font-bold text-card-foreground mb-3">Key Requirements</h3>
+            <h3 className="text-xl font-bold text-card-foreground mb-3">
+              Key Requirements
+            </h3>
             <div className="flex flex-wrap gap-2">
               {jobDetails.requiredSkills.map((skill) => (
-                <span key={skill} className="px-3 py-1 text-sm bg-secondary text-secondary-foreground rounded-md">
+                <span
+                  key={skill}
+                  className="px-3 py-1 text-sm bg-secondary text-secondary-foreground rounded-md"
+                >
                   {skill}
                 </span>
               ))}
@@ -129,36 +180,44 @@ export default function InterviewPrepPage() {
 
           {/* Resume Uploader Section */}
           <div className="lg:col-span-1">
-             <ResumeUploader onUploadSuccess={() => setIsResumeReady(true)} />
+            <ResumeUploader onUploadSuccess={() => setIsResumeReady(true)} />
           </div>
 
           {/* Start Interview Section */}
           <div className="lg:col-span-1">
-              <div className="bg-card p-8 border border-border rounded-[--radius-xl] shadow-lg text-center">
-                <h2 className="text-2xl font-bold text-card-foreground mb-4">
-                    Step 3: Begin Interview
-                </h2>
-                <p className="text-muted-foreground mb-6">
-                    {isResumeReady 
-                      ? "You're all set! Click below to start your AI interview."
-                      : "Once your resume is uploaded, you can start the AI-powered interview."
-                    }
-                </p>
-                <Button 
-                    onClick={handleStartInterview}
-                    disabled={!isResumeReady}
-                    size="lg"
-                    className="w-full h-14 text-lg font-bold"
-                >
+            <div className="bg-card p-8 border border-border rounded-[--radius-xl] shadow-lg text-center">
+              <h2 className="text-2xl font-bold text-card-foreground mb-4">
+                Step 3: Begin Interview
+              </h2>
+              <p className="text-muted-foreground mb-6">
+                {isResumeReady
+                  ? "You're all set! Click below to start your AI interview."
+                  : "Once your resume is uploaded, you can start the AI-powered interview."}
+              </p>
+              <Button
+                onClick={handleStartInterview}
+                disabled={!isResumeReady || isStartingCall}
+                size="lg"
+                className="w-full h-14 text-lg font-bold"
+              >
+                {isStartingCall ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Initializing Call...
+                  </>
+                ) : (
+                  <>
                     Start AI Interview
                     <ArrowRight className="ml-2 w-5 h-5" />
-                </Button>
-                {isResumeReady && (
-                  <p className="mt-4 text-xs text-muted-foreground">
-                    ✓ Resume detected
-                  </p>
+                  </>
                 )}
-             </div>
+              </Button>
+              {isResumeReady && (
+                <p className="mt-4 text-xs text-muted-foreground">
+                  ✓ Resume detected
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>

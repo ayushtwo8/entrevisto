@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Loader2 } from "lucide-react";
+import Vapi from "@vapi-ai/web";
 
 // Mock job details type for this page
 type JobDetails = {
@@ -13,102 +14,76 @@ type JobDetails = {
 export default function InterviewPage() {
   const { jobId } = useParams();
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isMicOn, setIsMicOn] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [isCameraOn, setIsCameraOn] = useState(true);
 
+  const [assistantId, setAssistantId] = useState(null);
+  const [callStatus, setCallStatus] = useState('Idle');
+  const [error, setError] = useState<string | null>(null);
+
+  const { toggleCall, isCallActive, setMuted, mute, volume, isMuted, send } = new Vapi(`${process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY}`);
+
+  // Vapi event listener to update call status
   useEffect(() => {
-    // Hide navbar/header by adding a class to body or html
-    document.body.classList.add('interview-mode');
-    document.documentElement.classList.add('interview-mode');
-    
-    // Alternative: Hide by ID if your navbar has a specific ID
-    const navbar = document.querySelector('nav') || document.querySelector('header[role="navigation"]');
-    if (navbar instanceof HTMLElement) {
-      navbar.style.display = 'none';
+    // This is a basic setup. You'd typically use a more structured event handler.
+    if (isCallActive) {
+        setCallStatus('In Progress (Listening/Speaking)');
+    } else if (assistantId && !isCallActive) {
+        setCallStatus('Ready to Start');
+    } else {
+        setCallStatus('Idle');
     }
+  }, [isCallActive, assistantId]);
 
-    return () => {
-      // Cleanup: Show navbar again when leaving the page
-      document.body.classList.remove('interview-mode');
-      document.documentElement.classList.remove('interview-mode');
-      if (navbar instanceof HTMLElement) {
-        navbar.style.display = '';
+  const fetchAssistant = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/vapi-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(jobDetails), // Send the context data
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get assistant ID from backend.');
       }
-    };
-  }, []);
 
-  useEffect(() => {
-    // Fetch job details to display context during the interview
-    async function fetchJobDetails() {
-      if (!jobId) return;
-      try {
-        const response = await fetch(`/api/candidate/jobs/${jobId}`);
-        if (!response.ok) throw new Error("Failed to fetch job");
-        const data = await response.json();
-        setJobDetails(data);
-      } catch (error) {
-        console.error("Failed to load job details for interview:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    fetchJobDetails();
-  }, [jobId]);
-
-  useEffect(() => {
-    // Enter fullscreen on mount
-    const enterFullscreen = async () => {
-      try {
-        if (document.documentElement.requestFullscreen) {
-          await document.documentElement.requestFullscreen();
-        }
-      } catch (error) {
-        console.log("Fullscreen request failed:", error);
-      }
-    };
-
-    enterFullscreen();
-
-    return () => {
-      // Exit fullscreen when component unmounts
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-      }
-    };
-  }, []);
-
-  const handleEndInterview = async () => {
-    if (confirm("Are you sure you want to end the interview?")) {
-      // Exit fullscreen before ending
-      if (document.fullscreenElement) {
-        await document.exitFullscreen().catch(() => {});
-      }
-      // Add your end interview logic here (e.g., redirect, save data, etc.)
-      alert("Ending interview...");
+      const data = await response.json();
+      setAssistantId(data.assistantId);
+      setCallStatus('Ready to Start');
+    } catch (err) {
+      console.error(err);
+      setError(err.message);
+      setCallStatus('Error');
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (isLoading) {
+  // --- 2. Function to Start/End the Vapi Call ---
+  const handleToggleCall = () => {
+    if (!assistantId) {
+      setError("Assistant not ready. Please try fetching it again.");
+      return;
+    }
+    toggleCall({ assistantId }); // Start the call with the dynamically created assistant
+  };
+
+  if (!assistantId && !loading && !error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <div className="mt-4 text-lg">Preparing your interview...</div>
+      <div className="card">
+        <h2>Setup Interview</h2>
+        <p>Job: {MOCK_DATA.jobTitle}</p>
+        <button onClick={fetchAssistant} disabled={loading}>
+          {loading ? 'Setting up...' : 'Configure Interviewer'}
+        </button>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground font-sans overflow-hidden">
-      {/* Header */}
-      <header className="px-6 py-4 border-b border-border bg-card">
-        <div>
-          <h1 className="text-2xl font-bold text-card-foreground">AI Interview</h1>
-          <div className="text-sm text-muted-foreground">
-            For the position of {jobDetails?.title || "..."} at {jobDetails?.company?.name || "..."}
-          </div>
-        </div>
-      </header>
 
       {/* Main Content */}
       <main className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 overflow-hidden">
@@ -143,25 +118,27 @@ export default function InterviewPage() {
           <div className="mt-4 pt-4 border-t border-border">
             <div className="text-xs text-muted-foreground flex items-center gap-2">
               <div className="w-1.5 h-1.5 bg-destructive rounded-full animate-pulse" />
-              Recording in progress
+              {callStatus}
             </div>
           </div>
         </div>
       </main>
 
+      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
+
       {/* Footer with Controls */}
       <footer className="bg-card/50 backdrop-blur-sm border-t border-border flex justify-center items-center p-6 space-x-4">
-        <button
-          onClick={() => setIsMicOn(!isMicOn)}
+        {isCallActive && <button
+          onClick={() => setMuted(!isMuted)}
           className={`rounded-full h-14 w-14 flex items-center justify-center transition-all duration-200 shadow-lg ${
-            isMicOn
-              ? "bg-secondary hover:bg-secondary/80 text-secondary-foreground"
-              : "bg-destructive hover:bg-destructive/80 text-destructive-foreground"
+            isMuted
+              ? "bg-destructive hover:bg-destructive/80 text-destructive-foreground"
+              : "bg-secondary hover:bg-secondary/80 text-secondary-foreground"
           }`}
-          title={isMicOn ? "Mute Microphone" : "Unmute Microphone"}
+          title={isMuted ? "Unmute Microphone" : "Mute Microphone"}
         >
-          {isMicOn ? <Mic size={24} /> : <MicOff size={24} />}
-        </button>
+          {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
+        </button>}
         <button
           onClick={() => setIsCameraOn(!isCameraOn)}
           className={`rounded-full h-14 w-14 flex items-center justify-center transition-all duration-200 shadow-lg ${
@@ -174,7 +151,8 @@ export default function InterviewPage() {
           {isCameraOn ? <Video size={24} /> : <VideoOff size={24} />}
         </button>
         <button
-          onClick={handleEndInterview}
+          onClick={handleToggleCall}
+          disabled={loading}
           className="rounded-full h-14 w-14 flex items-center justify-center bg-destructive hover:bg-destructive/80 text-destructive-foreground transition-all duration-200 shadow-lg"
           title="End Interview"
         >
