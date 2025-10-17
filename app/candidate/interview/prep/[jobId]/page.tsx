@@ -113,9 +113,9 @@ export default function InterviewPrepPage() {
       // The Vapi call will be running in the background, and the frontend page
       // (app/interview/[sessionId]/page.tsx from before) will connect to it.
       router.push(`/candidate/interview/call/${newSessionId}`);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Start Interview Error:", err);
-      alert(`Error starting interview: ${err.message || "Please try again."}`);
+      alert("Error starting interview. Please try again.");
       setIsStartingCall(false); // Reset loading state on error
     }
   };

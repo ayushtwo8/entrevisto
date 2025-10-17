@@ -14,7 +14,7 @@ if (!VAPI_API_KEY || !VAPI_ASSISTANT_ID) {
 const vapi = new VapiClient({ token: VAPI_API_KEY! });
 
 type VapiCallResponse = Awaited<ReturnType<typeof vapi.calls.create>>;
-type SingleCallResponse = VapiCallResponse extends Array<any>
+type SingleCallResponse = VapiCallResponse extends Array<string>
   ? VapiCallResponse[number]
   : VapiCallResponse;
 
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Initiate the Vapi Call (Web Call for simplicity here)
     const vapiCall = (await vapi.calls.create(
-      callPayload as any
+      callPayload 
     )) as SingleCallResponse;
 
     // 4. Update the InterviewSession with the Vapi Call ID
