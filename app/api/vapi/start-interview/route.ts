@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { jobId } = await req.json();
+    const jobId  = await req.json();
 
     if (!jobId) {
       return NextResponse.json(
