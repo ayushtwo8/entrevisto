@@ -7,13 +7,10 @@ const VAPI_API_KEY = process.env.VAPI_API_KEY;
 const VAPI_ASSISTANT_ID = process.env.VAPI_ASSISTANT_ID; // Replace with your Assistant ID
 // const VAPI_PHONE_NUMBER_ID = 'YOUR_VAPI_PHONE_NUMBER_ID'; // For phone calls, or omit for web call
 
-if (!VAPI_API_KEY || !VAPI_ASSISTANT_ID) {
-  throw new Error(
-    "VAPI_API_KEY or VAPI_ASSISTANT_ID is missing in environment."
-  );
+let vapi: VapiClient | undefined;
+if (VAPI_API_KEY && VAPI_ASSISTANT_ID) {
+  vapi = new VapiClient({ token: VAPI_API_KEY });
 }
-
-const vapi = new VapiClient({ token: VAPI_API_KEY! });
 
 interface VapiSingleCall {
   id: string;
@@ -22,9 +19,19 @@ interface VapiSingleCall {
 }
 
 export async function POST(req: NextRequest) {
+  if (!vapi) {
+    console.error(
+      "Vapi Client not initialized due to missing environment variables."
+    );
+    return NextResponse.json(
+      { message: "Server configuration error: VAPI keys missing." },
+      { status: 500 }
+    );
+  }
+
   const user = await currentUser();
 
-  console.log("Authenticated user:", user);
+  console.log("DEBUG: Authenticated user:", user?.id);
   const candidateClerkId = user?.id;
 
   if (!candidateClerkId) {
@@ -42,20 +49,23 @@ export async function POST(req: NextRequest) {
     }
 
     const latestResume = await prisma.resume.findFirst({
-    where: { userId: candidateClerkId },
-    orderBy: { createdAt: 'desc' },
-    select: { id: true },
-});
+      where: { userId: candidateClerkId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
 
-const resumeId = latestResume?.id;
+    const resumeId = latestResume?.id;
 
-if (!resumeId) {
-    // This handles cases where the frontend's 'isResumeReady' check was stale or incorrect
-    return NextResponse.json(
-        { message: "Resume required to start interview, but not found for candidate." },
+    if (!resumeId) {
+      // This handles cases where the frontend's 'isResumeReady' check was stale or incorrect
+      return NextResponse.json(
+        {
+          message:
+            "Resume required to start interview, but not found for candidate.",
+        },
         { status: 400 }
-    );
-} 
+      );
+    }
 
     const application = await prisma.application.upsert({
       where: {
@@ -73,8 +83,8 @@ if (!resumeId) {
       create: {
         candidateId: candidateClerkId,
         jobId: jobId,
-        resumeId: resumeId, 
-      status: 'INTERVIEW_INVITED',
+        resumeId: resumeId,
+        status: "INTERVIEW_INVITED",
       },
       select: { id: true, resumeId: true },
     });
@@ -90,47 +100,71 @@ if (!resumeId) {
     }
     const applicationId = application.id;
 
-    // 1. Create a new InterviewSession in your database
-    const newSession = await prisma.interviewSession.create({
-      data: {
-        applicationId: applicationId,
-        type: "JOB_APPLICATION",
-        status: "PENDING",
-        // vapiCallId will be updated by webhook later
-      },
+    let interviewSession = await prisma.interviewSession.findUnique({
+      where: { applicationId: applicationId },
+      select: { id: true, vapiCallId: true, status: true },
     });
 
-    // 2. Prepare the Vapi Call payload
-    const callPayload = {
-      assistantId: VAPI_ASSISTANT_ID,
-      customer: {
-        number: candidateNumber, // Use actual phone number or 'browser' for web call
-      },
-      // Pass the new session ID as metadata for the assistant to use in the tool call
-      metadata: {
-        interviewSessionId: newSession.id,
-      },
-      // For phone calls, you'd add: phoneNumberId: VAPI_PHONE_NUMBER_ID,
-    };
+    let sessionAlreadyInProgress = false;
 
-    // 3. Initiate the Vapi Call (Web Call for simplicity here)
-    const vapiCall = (await vapi.calls.create(callPayload)) as VapiSingleCall;
+    if (interviewSession) {
+      // Session exists. If it's still 'PENDING' or 'COMPLETED', we just return the existing ID.
+      sessionAlreadyInProgress = interviewSession.status === "IN_PROGRESS";
+      console.log(
+        `DEBUG: Existing Interview Session found: ${interviewSession.id}, Status: ${interviewSession.status}`
+      );
+    } else {
+      // Session does NOT exist, so create it (with status 'PENDING')
+      interviewSession = await prisma.interviewSession.create({
+        data: {
+          applicationId: applicationId,
+          type: "JOB_APPLICATION",
+          status: "PENDING",
+        },
+        select: { id: true, vapiCallId: true, status: true },
+      });
+    }
 
-    // 4. Update the InterviewSession with the Vapi Call ID
-    await prisma.interviewSession.update({
-      where: { id: newSession.id },
-      data: { vapiCallId: vapiCall.id, status: "IN_PROGRESS" },
-    });
+    if (!interviewSession.vapiCallId || sessionAlreadyInProgress) {
+      // If it's a new session OR if the previous one finished and we want to retry (optional logic)
+      // For simplicity, let's just create the Vapi call if the vapiCallId is missing.
+
+      // 2a. Prepare the Vapi Call payload
+      const callPayload = {
+        assistantId: VAPI_ASSISTANT_ID,
+        customer: { number: candidateNumber },
+        metadata: { interviewSessionId: interviewSession.id },
+      };
+
+      // 2b. Initiate the Vapi Call
+      const vapiCall = (await vapi.calls.create(
+        callPayload as any
+      )) as VapiSingleCall;
+
+      // 2c. Update the InterviewSession with the Vapi Call ID and status
+      interviewSession = await prisma.interviewSession.update({
+        where: { id: interviewSession.id },
+        data: { vapiCallId: vapiCall.id, status: "IN_PROGRESS" },
+        select: { id: true, vapiCallId: true, status: true },
+      });
+    }
 
     return NextResponse.json({
-      message: "Interview call initiated",
-      callId: vapiCall.id,
-      sessionId: newSession.id,
+      message: "Interview call initiated/resumed",
+      callId: interviewSession.vapiCallId,
+      sessionId: interviewSession.id, // Return the existing or new session ID
     });
   } catch (error) {
-    console.error("Failed to start Vapi call:", error);
+    console.error("FAILED TO START VAPI CALL - DETAILED ERROR:", error);
+
+    // 🟢 RETURN THE DETAILED ERROR MESSAGE TO THE FRONTEND
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "An unexpected server error occurred.";
+
     return NextResponse.json(
-      { message: "Internal Server Error" },
+      { message: `Internal Server Error: ${errorMessage}` },
       { status: 500 }
     );
   }
