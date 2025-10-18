@@ -23,6 +23,8 @@ interface VapiSingleCall {
 
 export async function POST(req: NextRequest) {
   const user = await currentUser();
+
+  console.log("Authenticated user:", user);
   const candidateClerkId = user?.id;
 
   if (!candidateClerkId) {
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const {jobId, candidateNumber}  = await req.json();
+    const { jobId, candidateNumber } = await req.json();
 
     if (!jobId || !candidateNumber) {
       return NextResponse.json(
@@ -39,20 +41,51 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const application = await prisma.application.findUnique({
+    const latestResume = await prisma.resume.findFirst({
+    where: { userId: candidateClerkId },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true },
+});
+
+const resumeId = latestResume?.id;
+
+if (!resumeId) {
+    // This handles cases where the frontend's 'isResumeReady' check was stale or incorrect
+    return NextResponse.json(
+        { message: "Resume required to start interview, but not found for candidate." },
+        { status: 400 }
+    );
+} 
+
+    const application = await prisma.application.upsert({
       where: {
         candidateId_jobId: {
           candidateId: candidateClerkId, // Use the authenticated user's ID
           jobId: jobId,
         },
       },
-      select: { id: true },
+      update: {
+        // If the application exists, update its status if needed,
+        // but for now, we just ensure it exists.
+        status: "INTERVIEW_INVITED",
+        resumeId: resumeId,
+      },
+      create: {
+        candidateId: candidateClerkId,
+        jobId: jobId,
+        resumeId: resumeId, 
+      status: 'INTERVIEW_INVITED',
+      },
+      select: { id: true, resumeId: true },
     });
 
-    if (!application) {
+    if (!application.resumeId) {
       return NextResponse.json(
-        { message: "Application not found for this user/job combination." },
-        { status: 404 }
+        {
+          message:
+            "Resume required to start interview, but not found for candidate.",
+        },
+        { status: 400 }
       );
     }
     const applicationId = application.id;
@@ -81,9 +114,7 @@ export async function POST(req: NextRequest) {
     };
 
     // 3. Initiate the Vapi Call (Web Call for simplicity here)
-    const vapiCall = (await vapi.calls.create(
-      callPayload 
-    )) as VapiSingleCall;
+    const vapiCall = (await vapi.calls.create(callPayload)) as VapiSingleCall;
 
     // 4. Update the InterviewSession with the Vapi Call ID
     await prisma.interviewSession.update({

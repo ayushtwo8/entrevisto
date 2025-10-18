@@ -60,25 +60,26 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData();
     const file = formData.get("resume") as File | null;
-  if (!file || !(file instanceof File)) {
-    return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
-  }
+    if (!file || !(file instanceof File)) {
+      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+    }
 
-  const blob = await put(file.name, file, { access: 'public', allowOverwrite: true });
-  const fileUrl = blob.url;
+    const blob = await put(file.name, file, {
+      access: "public",
+      allowOverwrite: true,
+    });
+    const fileUrl = blob.url;
 
+    console.log("File uploaded to Vercel Blob:", fileUrl);
 
-  console.log("File uploaded to Vercel Blob:", fileUrl);
+    console.log("Resume record updated:", fileUrl);
 
-  
-
-  console.log("Resume record updated:", fileUrl);
-
-  if (!fileUrl) {
-    return NextResponse.json({ error: "Failed to upload resume" }, { status: 500 });
-  }
-
-    
+    if (!fileUrl) {
+      return NextResponse.json(
+        { error: "Failed to upload resume" },
+        { status: 500 }
+      );
+    }
 
     // Fetch PDF from storage
     const response = await fetch(fileUrl);
@@ -102,18 +103,18 @@ export async function POST(req: NextRequest) {
 
     console.log("Parsed resume text length:", resumeText);
     const resumeRecord = await prisma.resume.upsert({
-  where: { id: userId }, // or another unique field if you want multiple resumes per user
-  create: {
-    fileUrl,             // file URL from Vercel Blob
-    rawText: resumeText, // parsed text or empty string initially
-      // connect to existing User
-    userId: userId       // required by the model
-  },
-  update: {
-    fileUrl,
-    rawText: "", // update parsed text if available
-  }
-});
+      where: { id: userId }, // or another unique field if you want multiple resumes per user
+      create: {
+        fileUrl, // file URL from Vercel Blob
+        rawText: resumeText, // parsed text or empty string initially
+        // connect to existing User
+        userId: userId, // required by the model
+      },
+      update: {
+        fileUrl,
+        rawText: "", // update parsed text if available
+      },
+    });
 
     // Success
     return NextResponse.json({ resumeRecord }, { status: 200 });

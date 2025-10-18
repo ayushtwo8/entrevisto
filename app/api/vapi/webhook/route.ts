@@ -31,8 +31,17 @@ export async function POST(req: NextRequest) {
         }
       });
 
-      const resumeData = session?.application?.resume?.parsedData;
-      const jobTitle = session?.application?.job?.title;
+      if (!session || !session.application || !session.application.resume) {
+  return NextResponse.json({
+    functionCall: {
+      name: 'get_candidate_resume_data',
+      result: JSON.stringify({ error: 'Session or linked resume data is missing.' })
+    }
+  }, { status: 200 }); // Return 200 to Vapi but send an error result to the AI
+}
+
+      const resumeData = session.application.resume.parsedData;
+const jobTitle = session.application.job?.title;
 
       if (resumeData) {
         // 2. Format the data to return to the Vapi Assistant
