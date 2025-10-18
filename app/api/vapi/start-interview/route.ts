@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
 
       // 2b. Initiate the Vapi Call
       const vapiCall = (await vapi.calls.create(
-        callPayload as any
+        callPayload
       )) as VapiSingleCall;
 
       // 2c. Update the InterviewSession with the Vapi Call ID and status
